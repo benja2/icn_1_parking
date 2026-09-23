@@ -1,52 +1,83 @@
 name: ICN T1 parking monitor
 
 on:
-  schedule:
-    # Offset from the top of the hour to reduce GitHub Actions schedule delays.
-    - cron: "3,13,23,33,43,53 * * * *"
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/parking-monitor.yml
+      - monitor.py
   workflow_dispatch:
 
 permissions:
-  actions: write
   contents: read
 
 jobs:
-  check-parking:
+  monitor-today:
     runs-on: ubuntu-latest
-    env:
-      TODAY_TEST_START_UTC: "2026-09-23T08:00:00Z"
-      TODAY_TEST_END_UTC: "2026-09-23T11:00:00Z"
-      TOMORROW_START_UTC: "2026-09-23T23:00:00Z"
-      TOMORROW_END_UTC: "2026-09-24T01:00:00Z"
+    timeout-minutes: 120
     steps:
-      - name: Select the active monitoring window
-        id: window
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          now="$(date -u +%s)"
-          today_test_start="$(date -u -d "$TODAY_TEST_START_UTC" +%s)"
-          today_test_end="$(date -u -d "$TODAY_TEST_END_UTC" +%s)"
-          tomorrow_start="$(date -u -d "$TOMORROW_START_UTC" +%s)"
-          tomorrow_end="$(date -u -d "$TOMORROW_END_UTC" +%s)"
-
-          if [ "$now" -ge "$tomorrow_end" ]; then
-            curl --fail-with-body --request PUT \
-              --header "Accept: application/vnd.github+json" \
-              --header "Authorization: Bearer $GH_TOKEN" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/parking-monitor.yml/disable"
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          elif { [ "$now" -ge "$today_test_start" ] && [ "$now" -lt "$today_test_end" ]; } || \
-            { [ "$now" -ge "$tomorrow_start" ] && [ "$now" -lt "$tomorrow_end" ]; }; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/checkout@v5
-        if: steps.window.outputs.run == 'true'
 
-      - name: Check parking and send notification
-        if: steps.window.outputs.run == 'true'
-        run: python3 monitor.py
+      - name: Send updates every 10 minutes until 22:00 KST
+        run: |
+          end="$(date -u -d '2026-09-23T13:00:00Z' +%s)"
+
+          while [ "$(date -u +%s)" -lt "$end" ]; do
+            python3 monitor.py || echo "Parking check failed; retrying in 10 minutes"
+            remaining=$((end - $(date -u +%s)))
+            [ "$remaining" -le 0 ] && break
+            [ "$remaining" -lt 600 ] && sleep "$remaining" || sleep 600
+          done
+
+  wait-until-0330:
+    needs: monitor-today
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - name: Wait without sending notifications
+        run: |
+          target="$(date -u -d '2026-09-23T18:30:00Z' +%s)"
+          while [ "$(date -u +%s)" -lt "$target" ]; do
+            remaining=$((target - $(date -u +%s)))
+            [ "$remaining" -lt 300 ] && sleep "$remaining" || sleep 300
+            echo "Waiting for the next monitoring window"
+          done
+
+  wait-until-0755:
+    needs: wait-until-0330
+    runs-on: ubuntu-latest
+    timeout-minutes: 280
+    steps:
+      - name: Wait without sending notifications
+        run: |
+          target="$(date -u -d '2026-09-23T22:55:00Z' +%s)"
+          while [ "$(date -u +%s)" -lt "$target" ]; do
+            remaining=$((target - $(date -u +%s)))
+            [ "$remaining" -lt 300 ] && sleep "$remaining" || sleep 300
+            echo "Waiting for the next monitoring window"
+          done
+
+  monitor-tomorrow:
+    needs: wait-until-0755
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Send updates every 10 minutes from 08:00 to 10:00 KST
+        run: |
+          start="$(date -u -d '2026-09-23T23:00:00Z' +%s)"
+          end="$(date -u -d '2026-09-24T01:00:00Z' +%s)"
+
+          while [ "$(date -u +%s)" -lt "$start" ]; do
+            remaining=$((start - $(date -u +%s)))
+            [ "$remaining" -lt 60 ] && sleep "$remaining" || sleep 60
+          done
+
+          while [ "$(date -u +%s)" -lt "$end" ]; do
+            python3 monitor.py || echo "Parking check failed; retrying in 10 minutes"
+            remaining=$((end - $(date -u +%s)))
+            [ "$remaining" -le 0 ] && break
+            [ "$remaining" -lt 600 ] && sleep "$remaining" || sleep 600
+          done

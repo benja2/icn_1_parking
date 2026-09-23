@@ -8,13 +8,13 @@ following T1 parking availability to ntfy:
 - P2 long-term parking
 - P2 parking tower (west)
 
-The workflow sends updates around 3, 13, 23, 33, 43, and 53 minutes past the
-hour during these windows:
+The one-time cloud workflow sends updates every 10 minutes during these windows:
 
-- 2026-09-23 from now until 20:00 KST (test window)
+- 2026-09-23 from now until 22:00 KST (test window)
 - 2026-09-24 from 08:00 until 10:00 KST
 
-It pauses between the windows and disables itself at **2026-09-24 10:00 KST**.
+It waits in chained GitHub-hosted jobs between the windows and finishes at
+**2026-09-24 10:00 KST**. It does not depend on a local computer or Codex.
 
 Subscribe to this topic in the ntfy app:
 
