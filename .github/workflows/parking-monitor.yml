@@ -13,25 +13,36 @@ jobs:
   check-parking:
     runs-on: ubuntu-latest
     env:
-      STOP_AT_UTC: "2026-09-24T03:00:00Z"
+      TODAY_END_UTC: "2026-09-23T07:00:00Z"
+      TOMORROW_START_UTC: "2026-09-23T23:00:00Z"
+      TOMORROW_END_UTC: "2026-09-24T01:00:00Z"
     steps:
-      - name: Stop after the monitoring window
-        id: cutoff
+      - name: Select the active monitoring window
+        id: window
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$(date -u +%s)" -ge "$(date -u -d "$STOP_AT_UTC" +%s)" ]; then
+          now="$(date -u +%s)"
+          today_end="$(date -u -d "$TODAY_END_UTC" +%s)"
+          tomorrow_start="$(date -u -d "$TOMORROW_START_UTC" +%s)"
+          tomorrow_end="$(date -u -d "$TOMORROW_END_UTC" +%s)"
+
+          if [ "$now" -ge "$tomorrow_end" ]; then
             curl --fail-with-body --request PUT \
               --header "Accept: application/vnd.github+json" \
               --header "Authorization: Bearer $GH_TOKEN" \
               --header "X-GitHub-Api-Version: 2022-11-28" \
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/parking-monitor.yml/disable"
-            echo "stopped=true" >> "$GITHUB_OUTPUT"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ "$now" -le "$today_end" ] || { [ "$now" -ge "$tomorrow_start" ] && [ "$now" -lt "$tomorrow_end" ]; }; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v5
-        if: steps.cutoff.outputs.stopped != 'true'
+        if: steps.window.outputs.run == 'true'
 
       - name: Check parking and send notification
-        if: steps.cutoff.outputs.stopped != 'true'
+        if: steps.window.outputs.run == 'true'
         run: python3 monitor.py

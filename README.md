@@ -8,7 +8,12 @@ following T1 parking availability to ntfy:
 - P2 long-term parking
 - P2 parking tower (west)
 
-The workflow disables itself after **2026-09-24 12:00 KST**.
+The workflow sends updates during these windows:
+
+- 2026-09-23 until 16:00 KST
+- 2026-09-24 from 08:00 until 10:00 KST
+
+It pauses between the windows and disables itself at **2026-09-24 10:00 KST**.
 
 Subscribe to this topic in the ntfy app:
 
