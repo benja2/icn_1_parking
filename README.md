@@ -11,6 +11,7 @@ following T1 parking availability to ntfy:
 The one-time cloud workflow sends updates every 10 minutes during these windows:
 
 - 2026-09-23 from now until 22:00 KST (test window)
+- 2026-09-24 from 07:21 until 08:00 KST (early-start extension)
 - 2026-09-24 from 08:00 until 10:00 KST
 
 It waits in chained GitHub-hosted jobs between the windows and finishes at

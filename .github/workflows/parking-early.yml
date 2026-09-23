@@ -1,0 +1,30 @@
+name: ICN T1 parking early monitor
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/parking-early.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  monitor-until-0800:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Send updates every 10 minutes until 08:00 KST
+        run: |
+          end="$(date -u -d '2026-09-23T23:00:00Z' +%s)"
+
+          while [ "$(date -u +%s)" -lt "$end" ]; do
+            python3 monitor.py || echo "Parking check failed; retrying in 10 minutes"
+            remaining=$((end - $(date -u +%s)))
+            [ "$remaining" -le 0 ] && break
+            [ "$remaining" -lt 600 ] && sleep "$remaining" || sleep 600
+          done
